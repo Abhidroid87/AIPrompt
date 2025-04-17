@@ -2,7 +2,7 @@
 
 ## Overview
 
-**Conceptual Architecture (Inspired by Manus AI):**
+**Conceptual Architecture:**
 
 This architecture aims to create a flexible and extensible system for automating tasks using intelligent agents, with a focus on context management and modularity.
 

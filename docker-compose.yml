@@ -1,7 +1,7 @@
 services:
-  # debug: docker compose run --rm -it browser-use-webui bash
-  browser-use-webui:
-    # image: ghcr.io/browser-use/web-ui # Using precompiled image
+  # debug: docker compose run --rm -it ai-prompt bash
+  ai-prompt:
+    # image: ghcr.io/myusername/ai-prompt # Using precompiled image
     build:
       context: .
       dockerfile: Dockerfile

@@ -57,13 +57,13 @@ def create_ui(theme_name="Ocean"):
     ui_manager = WebuiManager()
 
     with gr.Blocks(
-            title="Browser Use WebUI", theme=theme_map[theme_name], css=css, js=js_func,
+            title="AI Prompt", theme=theme_map[theme_name], css=css, js=js_func,
     ) as demo:
         with gr.Row():
             gr.Markdown(
                 """
-                # 🌐 Browser Use WebUI
-                ### Control your browser with AI assistance
+                # 🤖 AI Prompt
+                ### Your personal AI-driven browser agent
                 """,
                 elem_classes=["header-text"],
             )

@@ -1,10 +1,10 @@
 ## Reporting Security Issues
 
-If you believe you have found a security vulnerability in browser-use, please report it through coordinated disclosure.
+If you believe you have found a security vulnerability in AI Prompt, please report it through coordinated disclosure.
 
 **Please do not report security vulnerabilities through the repository issues, discussions, or pull requests.**
 
-Instead, please open a new [Github security advisory](https://github.com/browser-use/web-ui/security/advisories/new).
+Instead, please open a new [Github security advisory](https://github.com/myusername/ai-prompt/security/advisories/new).
 
 Please include as much of the information listed below as you can to help me better understand and resolve the issue:
 

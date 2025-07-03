@@ -20,7 +20,7 @@ from src.agent.deep_research.deep_research_agent import DeepResearchAgent
 
 
 class WebuiManager:
-    def __init__(self, settings_save_dir: str = "./tmp/webui_settings"):
+    def __init__(self, settings_save_dir: str = "./tmp/ai_prompt_settings"):
         self.id_to_component: dict[str, Component] = {}
         self.component_to_id: dict[Component, str] = {}
 

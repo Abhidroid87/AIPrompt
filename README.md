@@ -16,7 +16,7 @@ AI Prompt is a refined version of the Web UI project, adapted to help users inte
 
 **Persistent Browser Sessions:** You can choose to keep the browser window open between AI tasks, allowing you to see the complete history and state of AI interactions.
 
-<video src="https://github.com/user-attachments/assets/56bc7080-f2e3-4367-af22-6bf2245ff6cb" controls="controls">Your browser does not support playing this video!</video>
+<video src="https://github.com/user-attachments/assets/56bc7080-f2e3-4367-af22-6bf2245ff6b" controls="controls">Your browser does not support playing this video!</video>
 
 ## Installation Guide
 

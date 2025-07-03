@@ -1,15 +1,15 @@
 import gradio as gr
 from gradio.components import Component
 
-from src.webui.webui_manager import WebuiManager
+from src.ai_prompt.ai_prompt_manager import AiPromptManager
 from src.utils import config
 
 
-def create_load_save_config_tab(webui_manager: WebuiManager):
+def create_load_save_config_tab(ai_prompt_manager: AiPromptManager):
     """
     Creates a load and save config tab.
     """
-    input_components = set(webui_manager.get_components())
+    input_components = set(ai_prompt_manager.get_components())
     tab_components = {}
 
     config_file = gr.File(
@@ -34,17 +34,16 @@ def create_load_save_config_tab(webui_manager: WebuiManager):
         config_file=config_file,
     ))
 
-    webui_manager.add_components("load_save_config", tab_components)
+    ai_prompt_manager.add_components("load_save_config", tab_components)
 
     save_config_button.click(
-        fn=webui_manager.save_config,
-        inputs=set(webui_manager.get_components()),
+        fn=ai_prompt_manager.save_config,
+        inputs=set(ai_prompt_manager.get_components()),
         outputs=[config_status]
     )
 
     load_config_button.click(
-        fn=webui_manager.load_config,
+        fn=ai_prompt_manager.load_config,
         inputs=[config_file],
-        outputs=webui_manager.get_components(),
+        outputs=ai_prompt_manager.get_components(),
     )
-

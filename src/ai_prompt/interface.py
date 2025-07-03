@@ -1,11 +1,11 @@
 import gradio as gr
 
-from src.webui.webui_manager import WebuiManager
-from src.webui.components.agent_settings_tab import create_agent_settings_tab
-from src.webui.components.browser_settings_tab import create_browser_settings_tab
-from src.webui.components.browser_use_agent_tab import create_browser_use_agent_tab
-from src.webui.components.deep_research_agent_tab import create_deep_research_agent_tab
-from src.webui.components.load_save_config_tab import create_load_save_config_tab
+from src.ai_prompt.ai_prompt_manager import AiPromptManager
+from src.ai_prompt.components.agent_settings_tab import create_agent_settings_tab
+from src.ai_prompt.components.browser_settings_tab import create_browser_settings_tab
+from src.ai_prompt.components.browser_use_agent_tab import create_browser_use_agent_tab
+from src.ai_prompt.components.deep_research_agent_tab import create_deep_research_agent_tab
+from src.ai_prompt.components.load_save_config_tab import create_load_save_config_tab
 
 theme_map = {
     "Default": gr.themes.Default(),
@@ -54,7 +54,7 @@ def create_ui(theme_name="Ocean"):
     }
     """
 
-    ui_manager = WebuiManager()
+    ui_manager = AiPromptManager()
 
     with gr.Blocks(
             title="AI Prompt", theme=theme_map[theme_name], css=css, js=js_func,

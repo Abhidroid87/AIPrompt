@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 load_dotenv()
 import argparse
-from src.webui.interface import theme_map, create_ui
+from src.ai_prompt.interface import theme_map, create_ui
 
 
 def main():

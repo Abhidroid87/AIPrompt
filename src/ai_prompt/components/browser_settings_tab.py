@@ -4,34 +4,34 @@ import gradio as gr
 import logging
 from gradio.components import Component
 
-from src.webui.webui_manager import WebuiManager
+from src.ai_prompt.ai_prompt_manager import AiPromptManager
 from src.utils import config
 
 logger = logging.getLogger(__name__)
 
-async def close_browser(webui_manager: WebuiManager):
+async def close_browser(ai_prompt_manager: AiPromptManager):
     """
     Close browser
     """
-    if webui_manager.bu_current_task and not webui_manager.bu_current_task.done():
-        webui_manager.bu_current_task.cancel()
-        webui_manager.bu_current_task = None
+    if ai_prompt_manager.bu_current_task and not ai_prompt_manager.bu_current_task.done():
+        ai_prompt_manager.bu_current_task.cancel()
+        ai_prompt_manager.bu_current_task = None
 
-    if webui_manager.bu_browser_context:
+    if ai_prompt_manager.bu_browser_context:
         logger.info("⚠️ Closing browser context when changing browser config.")
-        await webui_manager.bu_browser_context.close()
-        webui_manager.bu_browser_context = None
+        await ai_prompt_manager.bu_browser_context.close()
+        ai_prompt_manager.bu_browser_context = None
 
-    if webui_manager.bu_browser:
+    if ai_prompt_manager.bu_browser:
         logger.info("⚠️ Closing browser when changing browser config.")
-        await webui_manager.bu_browser.close()
-        webui_manager.bu_browser = None
+        await ai_prompt_manager.bu_browser.close()
+        ai_prompt_manager.bu_browser = None
 
-def create_browser_settings_tab(webui_manager: WebuiManager):
+def create_browser_settings_tab(ai_prompt_manager: AiPromptManager):
     """
     Creates a browser settings tab.
     """
-    input_components = set(webui_manager.get_components())
+    input_components = set(ai_prompt_manager.get_components())
     tab_components = {}
 
     with gr.Group():
@@ -149,11 +149,11 @@ def create_browser_settings_tab(webui_manager: WebuiManager):
             window_w=window_w,
         )
     )
-    webui_manager.add_components("browser_settings", tab_components)
+    ai_prompt_manager.add_components("browser_settings", tab_components)
 
     async def close_wrapper():
         """Wrapper for handle_clear."""
-        await close_browser(webui_manager)
+        await close_browser(ai_prompt_manager)
 
     headless.change(close_wrapper)
     keep_browser_open.change(close_wrapper)

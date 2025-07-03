@@ -4,7 +4,7 @@ import os
 import gradio as gr
 from gradio.components import Component
 from typing import Any, Dict, Optional
-from src.webui.webui_manager import WebuiManager
+from src.ai_prompt.ai_prompt_manager import AiPromptManager
 from src.utils import config
 import logging
 from functools import partial
@@ -24,14 +24,14 @@ def update_model_dropdown(llm_provider):
         return gr.Dropdown(choices=[], value="", interactive=True, allow_custom_value=True)
 
 
-async def update_mcp_server(mcp_file: str, webui_manager: WebuiManager):
+async def update_mcp_server(mcp_file: str, ai_prompt_manager: AiPromptManager):
     """
     Update the MCP server.
     """
-    if hasattr(webui_manager, "bu_controller") and webui_manager.bu_controller:
+    if hasattr(ai_prompt_manager, "bu_controller") and ai_prompt_manager.bu_controller:
         logger.warning("⚠️ Close controller because mcp file has changed!")
-        await webui_manager.bu_controller.close_mcp_client()
-        webui_manager.bu_controller = None
+        await ai_prompt_manager.bu_controller.close_mcp_client()
+        ai_prompt_manager.bu_controller = None
 
     if not mcp_file or not os.path.exists(mcp_file) or not mcp_file.endswith('.json'):
         logger.warning(f"{mcp_file} is not a valid MCP file.")
@@ -43,11 +43,11 @@ async def update_mcp_server(mcp_file: str, webui_manager: WebuiManager):
     return json.dumps(mcp_server, indent=2), gr.update(visible=True)
 
 
-def create_agent_settings_tab(webui_manager: WebuiManager):
+def create_agent_settings_tab(ai_prompt_manager: AiPromptManager):
     """
     Creates an agent settings tab.
     """
-    input_components = set(webui_manager.get_components())
+    input_components = set(ai_prompt_manager.get_components())
     tab_components = {}
 
     with gr.Group():
@@ -234,7 +234,7 @@ def create_agent_settings_tab(webui_manager: WebuiManager):
         mcp_json_file=mcp_json_file,
         mcp_server_config=mcp_server_config,
     ))
-    webui_manager.add_components("agent_settings", tab_components)
+    ai_prompt_manager.add_components("agent_settings", tab_components)
 
     llm_provider.change(
         fn=lambda x: gr.update(visible=x == "ollama"),
@@ -259,7 +259,7 @@ def create_agent_settings_tab(webui_manager: WebuiManager):
 
     async def update_wrapper(mcp_file):
         """Wrapper for handle_pause_resume."""
-        update_dict = await update_mcp_server(mcp_file, webui_manager)
+        update_dict = await update_mcp_server(mcp_file, ai_prompt_manager)
         yield update_dict
 
     mcp_json_file.change(

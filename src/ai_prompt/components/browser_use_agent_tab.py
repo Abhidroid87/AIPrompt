@@ -22,7 +22,7 @@ from src.agent.browser_use.browser_use_agent import BrowserUseAgent
 from src.browser.custom_browser import CustomBrowser
 from src.controller.custom_controller import CustomController
 from src.utils import llm_provider
-from src.webui.webui_manager import WebuiManager
+from src.ai_prompt.ai_prompt_manager import AiPromptManager
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ async def _initialize_llm(
 
 
 def _get_config_value(
-        webui_manager: WebuiManager,
+        ai_prompt_manager: AiPromptManager,
         comp_dict: Dict[gr.components.Component, Any],
         comp_id_suffix: str,
         default: Any = None,
@@ -78,14 +78,14 @@ def _get_config_value(
     comp_id = f"{tab_name}.{comp_id_suffix}"
     # Need to find the component object first using the ID from the manager
     try:
-        comp = webui_manager.get_component_by_id(comp_id)
+        comp = ai_prompt_manager.get_component_by_id(comp_id)
         return comp_dict.get(comp, default)
     except KeyError:
         # Try accessing settings tabs as well
         for prefix in ["agent_settings", "browser_settings"]:
             try:
                 comp_id = f"{prefix}.{comp_id_suffix}"
-                comp = webui_manager.get_component_by_id(comp_id)
+                comp = ai_prompt_manager.get_component_by_id(comp_id)
                 return comp_dict.get(comp, default)
             except KeyError:
                 continue
@@ -132,17 +132,17 @@ def _format_agent_output(model_output: AgentOutput) -> str:
 
 
 async def _handle_new_step(
-        webui_manager: WebuiManager, state: BrowserState, output: AgentOutput, step_num: int
+        ai_prompt_manager: AiPromptManager, state: BrowserState, output: AgentOutput, step_num: int
 ):
     """Callback for each step taken by the agent, including screenshot display."""
 
     # Use the correct chat history attribute name from the user's code
-    if not hasattr(webui_manager, "bu_chat_history"):
+    if not hasattr(ai_prompt_manager, "bu_chat_history"):
         logger.error(
-            "Attribute 'bu_chat_history' not found in webui_manager! Cannot add chat message."
+            "Attribute 'bu_chat_history' not found in ai_prompt_manager! Cannot add chat message."
         )
         # Initialize it maybe? Or raise an error? For now, log and potentially skip chat update.
-        webui_manager.bu_chat_history = []  # Initialize if missing (consider if this is the right place)
+        ai_prompt_manager.bu_chat_history = []  # Initialize if missing (consider if this is the right place)
         # return # Or stop if this is critical
     step_num -= 1
     logger.info(f"Step {step_num} completed.")
@@ -192,12 +192,12 @@ async def _handle_new_step(
     }
 
     # Append to the correct chat history list
-    webui_manager.bu_chat_history.append(chat_message)
+    ai_prompt_manager.bu_chat_history.append(chat_message)
 
     await asyncio.sleep(0.05)
 
 
-def _handle_done(webui_manager: WebuiManager, history: AgentHistoryList):
+def _handle_done(ai_prompt_manager: AiPromptManager, history: AgentHistoryList):
     """Callback when the agent finishes the task (success or failure)."""
     logger.info(
         f"Agent task finished. Duration: {history.total_duration_seconds():.2f}s, Tokens: {history.total_input_tokens()}"
@@ -216,86 +216,86 @@ def _handle_done(webui_manager: WebuiManager, history: AgentHistoryList):
     else:
         final_summary += "- Status: Success\n"
 
-    webui_manager.bu_chat_history.append(
+    ai_prompt_manager.bu_chat_history.append(
         {"role": "assistant", "content": final_summary}
     )
 
 
 async def _ask_assistant_callback(
-        webui_manager: WebuiManager, query: str, browser_context: BrowserContext
+        ai_prompt_manager: AiPromptManager, query: str, browser_context: BrowserContext
 ) -> Dict[str, Any]:
     """Callback triggered by the agent's ask_for_assistant action."""
     logger.info("Agent requires assistance. Waiting for user input.")
 
-    if not hasattr(webui_manager, "_chat_history"):
-        logger.error("Chat history not found in webui_manager during ask_assistant!")
+    if not hasattr(ai_prompt_manager, "_chat_history"):
+        logger.error("Chat history not found in ai_prompt_manager during ask_assistant!")
         return {"response": "Internal Error: Cannot display help request."}
 
-    webui_manager.bu_chat_history.append(
+    ai_prompt_manager.bu_chat_history.append(
         {
             "role": "assistant",
             "content": f"**Need Help:** {query}\nPlease provide information or perform the required action in the browser, then type your response/confirmation below and click 'Submit Response'.",
         }
     )
 
-    # Use state stored in webui_manager
-    webui_manager.bu_response_event = asyncio.Event()
-    webui_manager.bu_user_help_response = None  # Reset previous response
+    # Use state stored in ai_prompt_manager
+    ai_prompt_manager.bu_response_event = asyncio.Event()
+    ai_prompt_manager.bu_user_help_response = None  # Reset previous response
 
     try:
         logger.info("Waiting for user response event...")
         await asyncio.wait_for(
-            webui_manager.bu_response_event.wait(), timeout=3600.0
+            ai_prompt_manager.bu_response_event.wait(), timeout=3600.0
         )  # Long timeout
         logger.info("User response event received.")
     except asyncio.TimeoutError:
         logger.warning("Timeout waiting for user assistance.")
-        webui_manager.bu_chat_history.append(
+        ai_prompt_manager.bu_chat_history.append(
             {
                 "role": "assistant",
                 "content": "**Timeout:** No response received. Trying to proceed.",
             }
         )
-        webui_manager.bu_response_event = None  # Clear the event
+        ai_prompt_manager.bu_response_event = None  # Clear the event
         return {"response": "Timeout: User did not respond."}  # Inform the agent
 
-    response = webui_manager.bu_user_help_response
-    webui_manager.bu_chat_history.append(
+    response = ai_prompt_manager.bu_user_help_response
+    ai_prompt_manager.bu_chat_history.append(
         {"role": "user", "content": response}
     )  # Show user response in chat
-    webui_manager.bu_response_event = (
+    ai_prompt_manager.bu_response_event = (
         None  # Clear the event for the next potential request
     )
     return {"response": response}
 
 
-# --- Core Agent Execution Logic --- (Needs access to webui_manager)
+# --- Core Agent Execution Logic --- (Needs access to ai_prompt_manager)
 
 
 async def run_agent_task(
-        webui_manager: WebuiManager, components: Dict[gr.components.Component, Any]
+        ai_prompt_manager: AiPromptManager, components: Dict[gr.components.Component, Any]
 ) -> AsyncGenerator[Dict[gr.components.Component, Any], None]:
     """Handles the entire lifecycle of initializing and running the agent."""
 
     # --- Get Components ---
     # Need handles to specific UI components to update them
-    user_input_comp = webui_manager.get_component_by_id("browser_use_agent.user_input")
-    run_button_comp = webui_manager.get_component_by_id("browser_use_agent.run_button")
-    stop_button_comp = webui_manager.get_component_by_id(
+    user_input_comp = ai_prompt_manager.get_component_by_id("browser_use_agent.user_input")
+    run_button_comp = ai_prompt_manager.get_component_by_id("browser_use_agent.run_button")
+    stop_button_comp = ai_prompt_manager.get_component_by_id(
         "browser_use_agent.stop_button"
     )
-    pause_resume_button_comp = webui_manager.get_component_by_id(
+    pause_resume_button_comp = ai_prompt_manager.get_component_by_id(
         "browser_use_agent.pause_resume_button"
     )
-    clear_button_comp = webui_manager.get_component_by_id(
+    clear_button_comp = ai_prompt_manager.get_component_by_id(
         "browser_use_agent.clear_button"
     )
-    chatbot_comp = webui_manager.get_component_by_id("browser_use_agent.chatbot")
-    history_file_comp = webui_manager.get_component_by_id(
+    chatbot_comp = ai_prompt_manager.get_component_by_id("browser_use_agent.chatbot")
+    history_file_comp = ai_prompt_manager.get_component_by_id(
         "browser_use_agent.agent_history_file"
     )
-    gif_comp = webui_manager.get_component_by_id("browser_use_agent.recording_gif")
-    browser_view_comp = webui_manager.get_component_by_id(
+    gif_comp = ai_prompt_manager.get_component_by_id("browser_use_agent.recording_gif")
+    browser_view_comp = ai_prompt_manager.get_component_by_id(
         "browser_use_agent.browser_view"
     )
 
@@ -307,7 +307,7 @@ async def run_agent_task(
         return
 
     # Set running state indirectly via _current_task
-    webui_manager.bu_chat_history.append({"role": "user", "content": task})
+    ai_prompt_manager.bu_chat_history.append({"role": "user", "content": task})
 
     yield {
         user_input_comp: gr.Textbox(
@@ -317,15 +317,15 @@ async def run_agent_task(
         stop_button_comp: gr.Button(interactive=True),
         pause_resume_button_comp: gr.Button(value="⏸️ Pause", interactive=True),
         clear_button_comp: gr.Button(interactive=False),
-        chatbot_comp: gr.update(value=webui_manager.bu_chat_history),
+        chatbot_comp: gr.update(value=ai_prompt_manager.bu_chat_history),
         history_file_comp: gr.update(value=None),
         gif_comp: gr.update(value=None),
     }
 
     # --- Agent Settings ---
-    # Access settings values via components dict, getting IDs from webui_manager
+    # Access settings values via components dict, getting IDs from ai_prompt_manager
     def get_setting(key, default=None):
-        comp = webui_manager.id_to_component.get(f"agent_settings.{key}")
+        comp = ai_prompt_manager.id_to_component.get(f"agent_settings.{key}")
         return components.get(comp, default) if comp else default
 
     override_system_prompt = get_setting("override_system_prompt") or None
@@ -344,7 +344,7 @@ async def run_agent_task(
     max_input_tokens = get_setting("max_input_tokens", 128000)
     tool_calling_str = get_setting("tool_calling_method", "auto")
     tool_calling_method = tool_calling_str if tool_calling_str != "None" else None
-    mcp_server_config_comp = webui_manager.id_to_component.get(
+    mcp_server_config_comp = ai_prompt_manager.id_to_component.get(
         "agent_settings.mcp_server_config"
     )
     mcp_server_config_str = (
@@ -377,7 +377,7 @@ async def run_agent_task(
 
     # --- Browser Settings ---
     def get_browser_setting(key, default=None):
-        comp = webui_manager.id_to_component.get(f"browser_settings.{key}")
+        comp = ai_prompt_manager.id_to_component.get(f"browser_settings.{key}")
         return components.get(comp, default) if comp else default
 
     browser_binary_path = get_browser_setting("browser_binary_path") or None
@@ -420,17 +420,17 @@ async def run_agent_task(
         ollama_num_ctx if llm_provider_name == "ollama" else None,
     )
 
-    # Pass the webui_manager instance to the callback when wrapping it
+    # Pass the ai_prompt_manager instance to the callback when wrapping it
     async def ask_callback_wrapper(
             query: str, browser_context: BrowserContext
     ) -> Dict[str, Any]:
-        return await _ask_assistant_callback(webui_manager, query, browser_context)
+        return await _ask_assistant_callback(ai_prompt_manager, query, browser_context)
 
-    if not webui_manager.bu_controller:
-        webui_manager.bu_controller = CustomController(
+    if not ai_prompt_manager.bu_controller:
+        ai_prompt_manager.bu_controller = CustomController(
             ask_assistant_callback=ask_callback_wrapper
         )
-        await webui_manager.bu_controller.setup_mcp_client(mcp_server_config)
+        await ai_prompt_manager.bu_controller.setup_mcp_client(mcp_server_config)
 
     # --- 4. Initialize Browser and Context ---
     should_close_browser_on_finish = not keep_browser_open
@@ -438,17 +438,17 @@ async def run_agent_task(
     try:
         # Close existing resources if not keeping open
         if not keep_browser_open:
-            if webui_manager.bu_browser_context:
+            if ai_prompt_manager.bu_browser_context:
                 logger.info("Closing previous browser context.")
-                await webui_manager.bu_browser_context.close()
-                webui_manager.bu_browser_context = None
-            if webui_manager.bu_browser:
+                await ai_prompt_manager.bu_browser_context.close()
+                ai_prompt_manager.bu_browser_context = None
+            if ai_prompt_manager.bu_browser:
                 logger.info("Closing previous browser.")
-                await webui_manager.bu_browser.close()
-                webui_manager.bu_browser = None
+                await ai_prompt_manager.bu_browser.close()
+                ai_prompt_manager.bu_browser = None
 
         # Create Browser if needed
-        if not webui_manager.bu_browser:
+        if not ai_prompt_manager.bu_browser:
             logger.info("Launching new browser instance.")
             extra_args = []
             if use_own_browser:
@@ -461,7 +461,7 @@ async def run_agent_task(
             else:
                 browser_binary_path = None
 
-            webui_manager.bu_browser = CustomBrowser(
+            ai_prompt_manager.bu_browser = CustomBrowser(
                 config=BrowserConfig(
                     headless=headless,
                     disable_security=disable_security,
@@ -477,7 +477,7 @@ async def run_agent_task(
             )
 
         # Create Context if needed
-        if not webui_manager.bu_browser_context:
+        if not ai_prompt_manager.bu_browser_context:
             logger.info("Creating new browser context.")
             context_config = BrowserContextConfig(
                 trace_path=save_trace_path if save_trace_path else None,
@@ -488,50 +488,50 @@ async def run_agent_task(
                 window_height=window_h,
                 window_width=window_w,
             )
-            if not webui_manager.bu_browser:
+            if not ai_prompt_manager.bu_browser:
                 raise ValueError("Browser not initialized, cannot create context.")
-            webui_manager.bu_browser_context = (
-                await webui_manager.bu_browser.new_context(config=context_config)
+            ai_prompt_manager.bu_browser_context = (
+                await ai_prompt_manager.bu_browser.new_context(config=context_config)
             )
 
         # --- 5. Initialize or Update Agent ---
-        webui_manager.bu_agent_task_id = str(uuid.uuid4())  # New ID for this task run
+        ai_prompt_manager.bu_agent_task_id = str(uuid.uuid4())  # New ID for this task run
         os.makedirs(
-            os.path.join(save_agent_history_path, webui_manager.bu_agent_task_id),
+            os.path.join(save_agent_history_path, ai_prompt_manager.bu_agent_task_id),
             exist_ok=True,
         )
         history_file = os.path.join(
             save_agent_history_path,
-            webui_manager.bu_agent_task_id,
-            f"{webui_manager.bu_agent_task_id}.json",
+            ai_prompt_manager.bu_agent_task_id,
+            f"{ai_prompt_manager.bu_agent_task_id}.json",
         )
         gif_path = os.path.join(
             save_agent_history_path,
-            webui_manager.bu_agent_task_id,
-            f"{webui_manager.bu_agent_task_id}.gif",
+            ai_prompt_manager.bu_agent_task_id,
+            f"{ai_prompt_manager.bu_agent_task_id}.gif",
         )
 
-        # Pass the webui_manager to callbacks when wrapping them
+        # Pass the ai_prompt_manager to callbacks when wrapping them
         async def step_callback_wrapper(
                 state: BrowserState, output: AgentOutput, step_num: int
         ):
-            await _handle_new_step(webui_manager, state, output, step_num)
+            await _handle_new_step(ai_prompt_manager, state, output, step_num)
 
         def done_callback_wrapper(history: AgentHistoryList):
-            _handle_done(webui_manager, history)
+            _handle_done(ai_prompt_manager, history)
 
-        if not webui_manager.bu_agent:
+        if not ai_prompt_manager.bu_agent:
             logger.info(f"Initializing new agent for task: {task}")
-            if not webui_manager.bu_browser or not webui_manager.bu_browser_context:
+            if not ai_prompt_manager.bu_browser or not ai_prompt_manager.bu_browser_context:
                 raise ValueError(
                     "Browser or Context not initialized, cannot create agent."
                 )
-            webui_manager.bu_agent = BrowserUseAgent(
+            ai_prompt_manager.bu_agent = BrowserUseAgent(
                 task=task,
                 llm=main_llm,
-                browser=webui_manager.bu_browser,
-                browser_context=webui_manager.bu_browser_context,
-                controller=webui_manager.bu_controller,
+                browser=ai_prompt_manager.bu_browser,
+                browser_context=ai_prompt_manager.bu_browser_context,
+                controller=ai_prompt_manager.bu_controller,
                 register_new_step_callback=step_callback_wrapper,
                 register_done_callback=done_callback_wrapper,
                 use_vision=use_vision,
@@ -542,27 +542,27 @@ async def run_agent_task(
                 tool_calling_method=tool_calling_method,
                 planner_llm=planner_llm,
                 use_vision_for_planner=planner_use_vision if planner_llm else False,
-                source="webui",
+                source="ai_prompt",
             )
-            webui_manager.bu_agent.state.agent_id = webui_manager.bu_agent_task_id
-            webui_manager.bu_agent.settings.generate_gif = gif_path
+            ai_prompt_manager.bu_agent.state.agent_id = ai_prompt_manager.bu_agent_task_id
+            ai_prompt_manager.bu_agent.settings.generate_gif = gif_path
         else:
-            webui_manager.bu_agent.state.agent_id = webui_manager.bu_agent_task_id
-            webui_manager.bu_agent.add_new_task(task)
-            webui_manager.bu_agent.settings.generate_gif = gif_path
-            webui_manager.bu_agent.browser = webui_manager.bu_browser
-            webui_manager.bu_agent.browser_context = webui_manager.bu_browser_context
-            webui_manager.bu_agent.controller = webui_manager.bu_controller
+            ai_prompt_manager.bu_agent.state.agent_id = ai_prompt_manager.bu_agent_task_id
+            ai_prompt_manager.bu_agent.add_new_task(task)
+            ai_prompt_manager.bu_agent.settings.generate_gif = gif_path
+            ai_prompt_manager.bu_agent.browser = ai_prompt_manager.bu_browser
+            ai_prompt_manager.bu_agent.browser_context = ai_prompt_manager.bu_browser_context
+            ai_prompt_manager.bu_agent.controller = ai_prompt_manager.bu_controller
 
         # --- 6. Run Agent Task and Stream Updates ---
-        agent_run_coro = webui_manager.bu_agent.run(max_steps=max_steps)
+        agent_run_coro = ai_prompt_manager.bu_agent.run(max_steps=max_steps)
         agent_task = asyncio.create_task(agent_run_coro)
-        webui_manager.bu_current_task = agent_task  # Store the task
+        ai_prompt_manager.bu_current_task = agent_task  # Store the task
 
-        last_chat_len = len(webui_manager.bu_chat_history)
+        last_chat_len = len(ai_prompt_manager.bu_chat_history)
         while not agent_task.done():
-            is_paused = webui_manager.bu_agent.state.paused
-            is_stopped = webui_manager.bu_agent.state.stopped
+            is_paused = ai_prompt_manager.bu_agent.state.paused
+            is_stopped = ai_prompt_manager.bu_agent.state.stopped
 
             # Check for pause state
             if is_paused:
@@ -575,8 +575,8 @@ async def run_agent_task(
                 # Wait until pause is released or task is stopped/done
                 while is_paused and not agent_task.done():
                     # Re-check agent state in loop
-                    is_paused = webui_manager.bu_agent.state.paused
-                    is_stopped = webui_manager.bu_agent.state.stopped
+                    is_paused = ai_prompt_manager.bu_agent.state.paused
+                    is_stopped = ai_prompt_manager.bu_agent.state.stopped
                     if is_stopped:  # Stop signal received while paused
                         break
                     await asyncio.sleep(0.2)
@@ -616,7 +616,7 @@ async def run_agent_task(
 
             # Check if agent is asking for help (via response_event)
             update_dict = {}
-            if webui_manager.bu_response_event is not None:
+            if ai_prompt_manager.bu_response_event is not None:
                 update_dict = {
                     user_input_comp: gr.update(
                         placeholder="Agent needs help. Enter response and submit.",
@@ -627,13 +627,13 @@ async def run_agent_task(
                     ),
                     pause_resume_button_comp: gr.update(interactive=False),
                     stop_button_comp: gr.update(interactive=False),
-                    chatbot_comp: gr.update(value=webui_manager.bu_chat_history),
+                    chatbot_comp: gr.update(value=ai_prompt_manager.bu_chat_history),
                 }
-                last_chat_len = len(webui_manager.bu_chat_history)
+                last_chat_len = len(ai_prompt_manager.bu_chat_history)
                 yield update_dict
                 # Wait until response is submitted or task finishes
                 while (
-                        webui_manager.bu_response_event is not None
+                        ai_prompt_manager.bu_response_event is not None
                         and not agent_task.done()
                 ):
                     await asyncio.sleep(0.2)
@@ -653,17 +653,17 @@ async def run_agent_task(
                     break  # Task finished while waiting for response
 
             # Update Chatbot if new messages arrived via callbacks
-            if len(webui_manager.bu_chat_history) > last_chat_len:
+            if len(ai_prompt_manager.bu_chat_history) > last_chat_len:
                 update_dict[chatbot_comp] = gr.update(
-                    value=webui_manager.bu_chat_history
+                    value=ai_prompt_manager.bu_chat_history
                 )
-                last_chat_len = len(webui_manager.bu_chat_history)
+                last_chat_len = len(ai_prompt_manager.bu_chat_history)
 
             # Update Browser View
-            if headless and webui_manager.bu_browser_context:
+            if headless and ai_prompt_manager.bu_browser_context:
                 try:
                     screenshot_b64 = (
-                        await webui_manager.bu_browser_context.take_screenshot()
+                        await ai_prompt_manager.bu_browser_context.take_screenshot()
                     )
                     if screenshot_b64:
                         html_content = f'<img src="data:image/jpeg;base64,{screenshot_b64}" style="width:{stream_vw}vw; height:{stream_vh}vh ; border:1px solid #ccc;">'
@@ -691,8 +691,8 @@ async def run_agent_task(
             await asyncio.sleep(0.1)  # Polling interval
 
         # --- 7. Task Finalization ---
-        webui_manager.bu_agent.state.paused = False
-        webui_manager.bu_agent.state.stopped = False
+        ai_prompt_manager.bu_agent.state.paused = False
+        ai_prompt_manager.bu_agent.state.stopped = False
         final_update = {}
         try:
             logger.info("Agent task completing...")
@@ -704,7 +704,7 @@ async def run_agent_task(
             logger.info("Agent task completed processing.")
 
             logger.info(f"Explicitly saving agent history to: {history_file}")
-            webui_manager.bu_agent.save_history(history_file)
+            ai_prompt_manager.bu_agent.save_history(history_file)
 
             if os.path.exists(history_file):
                 final_update[history_file_comp] = gr.File(value=history_file)
@@ -717,13 +717,13 @@ async def run_agent_task(
             logger.info("Agent task was cancelled.")
             if not any(
                     "Cancelled" in msg.get("content", "")
-                    for msg in webui_manager.bu_chat_history
+                    for msg in ai_prompt_manager.bu_chat_history
                     if msg.get("role") == "assistant"
             ):
-                webui_manager.bu_chat_history.append(
+                ai_prompt_manager.bu_chat_history.append(
                     {"role": "assistant", "content": "**Task Cancelled**."}
                 )
-            final_update[chatbot_comp] = gr.update(value=webui_manager.bu_chat_history)
+            final_update[chatbot_comp] = gr.update(value=ai_prompt_manager.bu_chat_history)
         except Exception as e:
             logger.error(f"Error during agent execution: {e}", exc_info=True)
             error_message = (
@@ -731,28 +731,28 @@ async def run_agent_task(
             )
             if not any(
                     error_message in msg.get("content", "")
-                    for msg in webui_manager.bu_chat_history
+                    for msg in ai_prompt_manager.bu_chat_history
                     if msg.get("role") == "assistant"
             ):
-                webui_manager.bu_chat_history.append(
+                ai_prompt_manager.bu_chat_history.append(
                     {"role": "assistant", "content": error_message}
                 )
-            final_update[chatbot_comp] = gr.update(value=webui_manager.bu_chat_history)
+            final_update[chatbot_comp] = gr.update(value=ai_prompt_manager.bu_chat_history)
             gr.Error(f"Agent execution failed: {e}")
 
         finally:
-            webui_manager.bu_current_task = None  # Clear the task reference
+            ai_prompt_manager.bu_current_task = None  # Clear the task reference
 
             # Close browser/context if requested
             if should_close_browser_on_finish:
-                if webui_manager.bu_browser_context:
+                if ai_prompt_manager.bu_browser_context:
                     logger.info("Closing browser context after task.")
-                    await webui_manager.bu_browser_context.close()
-                    webui_manager.bu_browser_context = None
-                if webui_manager.bu_browser:
+                    await ai_prompt_manager.bu_browser_context.close()
+                    ai_prompt_manager.bu_browser_context = None
+                if ai_prompt_manager.bu_browser:
                     logger.info("Closing browser after task.")
-                    await webui_manager.bu_browser.close()
-                    webui_manager.bu_browser = None
+                    await ai_prompt_manager.bu_browser.close()
+                    ai_prompt_manager.bu_browser = None
 
             # --- 8. Final UI Update ---
             final_update.update(
@@ -769,7 +769,7 @@ async def run_agent_task(
                     ),
                     clear_button_comp: gr.update(interactive=True),
                     # Ensure final chat history is shown
-                    chatbot_comp: gr.update(value=webui_manager.bu_chat_history),
+                    chatbot_comp: gr.update(value=ai_prompt_manager.bu_chat_history),
                 }
             )
             yield final_update
@@ -777,7 +777,7 @@ async def run_agent_task(
     except Exception as e:
         # Catch errors during setup (before agent run starts)
         logger.error(f"Error setting up agent task: {e}", exc_info=True)
-        webui_manager.bu_current_task = None  # Ensure state is reset
+        ai_prompt_manager.bu_current_task = None  # Ensure state is reset
         yield {
             user_input_comp: gr.update(
                 interactive=True, placeholder="Error during setup. Enter task..."
@@ -787,29 +787,29 @@ async def run_agent_task(
             pause_resume_button_comp: gr.update(value="⏸️ Pause", interactive=False),
             clear_button_comp: gr.update(interactive=True),
             chatbot_comp: gr.update(
-                value=webui_manager.bu_chat_history
+                value=ai_prompt_manager.bu_chat_history
                       + [{"role": "assistant", "content": f"**Setup Error:** {e}"}]
             ),
         }
 
 
-# --- Button Click Handlers --- (Need access to webui_manager)
+# --- Button Click Handlers --- (Need access to ai_prompt_manager)
 
 
 async def handle_submit(
-        webui_manager: WebuiManager, components: Dict[gr.components.Component, Any]
+        ai_prompt_manager: AiPromptManager, components: Dict[gr.components.Component, Any]
 ):
     """Handles clicks on the main 'Submit' button."""
-    user_input_comp = webui_manager.get_component_by_id("browser_use_agent.user_input")
+    user_input_comp = ai_prompt_manager.get_component_by_id("browser_use_agent.user_input")
     user_input_value = components.get(user_input_comp, "").strip()
 
     # Check if waiting for user assistance
-    if webui_manager.bu_response_event and not webui_manager.bu_response_event.is_set():
+    if ai_prompt_manager.bu_response_event and not ai_prompt_manager.bu_response_event.is_set():
         logger.info(f"User submitted assistance: {user_input_value}")
-        webui_manager.bu_user_help_response = (
+        ai_prompt_manager.bu_user_help_response = (
             user_input_value if user_input_value else "User provided no text response."
         )
-        webui_manager.bu_response_event.set()
+        ai_prompt_manager.bu_response_event.set()
         # UI updates handled by the main loop reacting to the event being set
         yield {
             user_input_comp: gr.update(
@@ -817,12 +817,12 @@ async def handle_submit(
                 interactive=False,
                 placeholder="Waiting for agent to continue...",
             ),
-            webui_manager.get_component_by_id(
+            ai_prompt_manager.get_component_by_id(
                 "browser_use_agent.run_button"
             ): gr.update(value="⏳ Running...", interactive=False),
         }
     # Check if a task is currently running (using _current_task)
-    elif webui_manager.bu_current_task and not webui_manager.bu_current_task.done():
+    elif ai_prompt_manager.bu_current_task and not ai_prompt_manager.bu_current_task.done():
         logger.warning(
             "Submit button clicked while agent is already running and not asking for help."
         )
@@ -832,28 +832,28 @@ async def handle_submit(
         # Handle submission for a new task
         logger.info("Submit button clicked for new task.")
         # Use async generator to stream updates from run_agent_task
-        async for update in run_agent_task(webui_manager, components):
+        async for update in run_agent_task(ai_prompt_manager, components):
             yield update
 
 
-async def handle_stop(webui_manager: WebuiManager):
+async def handle_stop(ai_prompt_manager: AiPromptManager):
     """Handles clicks on the 'Stop' button."""
     logger.info("Stop button clicked.")
-    agent = webui_manager.bu_agent
-    task = webui_manager.bu_current_task
+    agent = ai_prompt_manager.bu_agent
+    task = ai_prompt_manager.bu_current_task
 
     if agent and task and not task.done():
         # Signal the agent to stop by setting its internal flag
         agent.state.stopped = True
         agent.state.paused = False  # Ensure not paused if stopped
         return {
-            webui_manager.get_component_by_id(
+            ai_prompt_manager.get_component_by_id(
                 "browser_use_agent.stop_button"
             ): gr.update(interactive=False, value="⏹️ Stopping..."),
-            webui_manager.get_component_by_id(
+            ai_prompt_manager.get_component_by_id(
                 "browser_use_agent.pause_resume_button"
             ): gr.update(interactive=False),
-            webui_manager.get_component_by_id(
+            ai_prompt_manager.get_component_by_id(
                 "browser_use_agent.run_button"
             ): gr.update(interactive=False),
         }
@@ -861,25 +861,25 @@ async def handle_stop(webui_manager: WebuiManager):
         logger.warning("Stop clicked but agent is not running or task is already done.")
         # Reset UI just in case it's stuck
         return {
-            webui_manager.get_component_by_id(
+            ai_prompt_manager.get_component_by_id(
                 "browser_use_agent.run_button"
             ): gr.update(interactive=True),
-            webui_manager.get_component_by_id(
+            ai_prompt_manager.get_component_by_id(
                 "browser_use_agent.stop_button"
             ): gr.update(interactive=False),
-            webui_manager.get_component_by_id(
+            ai_prompt_manager.get_component_by_id(
                 "browser_use_agent.pause_resume_button"
             ): gr.update(interactive=False),
-            webui_manager.get_component_by_id(
+            ai_prompt_manager.get_component_by_id(
                 "browser_use_agent.clear_button"
             ): gr.update(interactive=True),
         }
 
 
-async def handle_pause_resume(webui_manager: WebuiManager):
+async def handle_pause_resume(ai_prompt_manager: AiPromptManager):
     """Handles clicks on the 'Pause/Resume' button."""
-    agent = webui_manager.bu_agent
-    task = webui_manager.bu_current_task
+    agent = ai_prompt_manager.bu_agent
+    task = ai_prompt_manager.bu_current_task
 
     if agent and task and not task.done():
         if agent.state.paused:
@@ -887,7 +887,7 @@ async def handle_pause_resume(webui_manager: WebuiManager):
             agent.resume()
             # UI update happens in main loop
             return {
-                webui_manager.get_component_by_id(
+                ai_prompt_manager.get_component_by_id(
                     "browser_use_agent.pause_resume_button"
                 ): gr.update(value="⏸️ Pause", interactive=True)
             }  # Optimistic update
@@ -895,7 +895,7 @@ async def handle_pause_resume(webui_manager: WebuiManager):
             logger.info("Pause button clicked.")
             agent.pause()
             return {
-                webui_manager.get_component_by_id(
+                ai_prompt_manager.get_component_by_id(
                     "browser_use_agent.pause_resume_button"
                 ): gr.update(value="▶️ Resume", interactive=True)
             }  # Optimistic update
@@ -906,15 +906,15 @@ async def handle_pause_resume(webui_manager: WebuiManager):
         return {}  # No change
 
 
-async def handle_clear(webui_manager: WebuiManager):
+async def handle_clear(ai_prompt_manager: AiPromptManager):
     """Handles clicks on the 'Clear' button."""
     logger.info("Clear button clicked.")
 
     # Stop any running task first
-    task = webui_manager.bu_current_task
+    task = ai_prompt_manager.bu_current_task
     if task and not task.done():
         logger.info("Clearing requires stopping the current task.")
-        webui_manager.bu_agent.stop()
+        ai_prompt_manager.bu_agent.stop()
         task.cancel()
         try:
             await asyncio.wait_for(task, timeout=2.0)  # Wait briefly
@@ -922,48 +922,48 @@ async def handle_clear(webui_manager: WebuiManager):
             pass
         except Exception as e:
             logger.warning(f"Error stopping task on clear: {e}")
-    webui_manager.bu_current_task = None
+    ai_prompt_manager.bu_current_task = None
 
-    if webui_manager.bu_controller:
-        await webui_manager.bu_controller.close_mcp_client()
-        webui_manager.bu_controller = None
-    webui_manager.bu_agent = None
+    if ai_prompt_manager.bu_controller:
+        await ai_prompt_manager.bu_controller.close_mcp_client()
+        ai_prompt_manager.bu_controller = None
+    ai_prompt_manager.bu_agent = None
 
     # Reset state stored in manager
-    webui_manager.bu_chat_history = []
-    webui_manager.bu_response_event = None
-    webui_manager.bu_user_help_response = None
-    webui_manager.bu_agent_task_id = None
+    ai_prompt_manager.bu_chat_history = []
+    ai_prompt_manager.bu_response_event = None
+    ai_prompt_manager.bu_user_help_response = None
+    ai_prompt_manager.bu_agent_task_id = None
 
     logger.info("Agent state and browser resources cleared.")
 
     # Reset UI components
     return {
-        webui_manager.get_component_by_id("browser_use_agent.chatbot"): gr.update(
+        ai_prompt_manager.get_component_by_id("browser_use_agent.chatbot"): gr.update(
             value=[]
         ),
-        webui_manager.get_component_by_id("browser_use_agent.user_input"): gr.update(
+        ai_prompt_manager.get_component_by_id("browser_use_agent.user_input"): gr.update(
             value="", placeholder="Enter your task here..."
         ),
-        webui_manager.get_component_by_id(
+        ai_prompt_manager.get_component_by_id(
             "browser_use_agent.agent_history_file"
         ): gr.update(value=None),
-        webui_manager.get_component_by_id("browser_use_agent.recording_gif"): gr.update(
+        ai_prompt_manager.get_component_by_id("browser_use_agent.recording_gif"): gr.update(
             value=None
         ),
-        webui_manager.get_component_by_id("browser_use_agent.browser_view"): gr.update(
+        ai_prompt_manager.get_component_by_id("browser_use_agent.browser_view"): gr.update(
             value="<div style='...'>Browser Cleared</div>"
         ),
-        webui_manager.get_component_by_id("browser_use_agent.run_button"): gr.update(
+        ai_prompt_manager.get_component_by_id("browser_use_agent.run_button"): gr.update(
             value="▶️ Submit Task", interactive=True
         ),
-        webui_manager.get_component_by_id("browser_use_agent.stop_button"): gr.update(
+        ai_prompt_manager.get_component_by_id("browser_use_agent.stop_button"): gr.update(
             interactive=False
         ),
-        webui_manager.get_component_by_id(
+        ai_prompt_manager.get_component_by_id(
             "browser_use_agent.pause_resume_button"
         ): gr.update(value="⏸️ Pause", interactive=False),
-        webui_manager.get_component_by_id("browser_use_agent.clear_button"): gr.update(
+        ai_prompt_manager.get_component_by_id("browser_use_agent.clear_button"): gr.update(
             interactive=True
         ),
     }
@@ -972,17 +972,17 @@ async def handle_clear(webui_manager: WebuiManager):
 # --- Tab Creation Function ---
 
 
-def create_browser_use_agent_tab(webui_manager: WebuiManager):
+def create_browser_use_agent_tab(ai_prompt_manager: AiPromptManager):
     """
     Create the run agent tab, defining UI, state, and handlers.
     """
-    webui_manager.init_browser_use_agent()
+    ai_prompt_manager.init_browser_use_agent()
 
     # --- Define UI Components ---
     tab_components = {}
     with gr.Column():
         chatbot = gr.Chatbot(
-            lambda: webui_manager.bu_chat_history,  # Load history dynamically
+            lambda: ai_prompt_manager.bu_chat_history,  # Load history dynamically
             elem_id="browser_use_chatbot",
             label="Agent Interaction",
             type="messages",
@@ -1038,12 +1038,12 @@ def create_browser_use_agent_tab(webui_manager: WebuiManager):
             browser_view=browser_view,
         )
     )
-    webui_manager.add_components(
+    ai_prompt_manager.add_components(
         "browser_use_agent", tab_components
     )  # Use "browser_use_agent" as tab_name prefix
 
     all_managed_components = set(
-        webui_manager.get_components()
+        ai_prompt_manager.get_components()
     )  # Get all components known to manager
     run_tab_outputs = list(tab_components.values())
 
@@ -1051,22 +1051,22 @@ def create_browser_use_agent_tab(webui_manager: WebuiManager):
             components_dict: Dict[Component, Any],
     ) -> AsyncGenerator[Dict[Component, Any], None]:
         """Wrapper for handle_submit that yields its results."""
-        async for update in handle_submit(webui_manager, components_dict):
+        async for update in handle_submit(ai_prompt_manager, components_dict):
             yield update
 
     async def stop_wrapper() -> AsyncGenerator[Dict[Component, Any], None]:
         """Wrapper for handle_stop."""
-        update_dict = await handle_stop(webui_manager)
+        update_dict = await handle_stop(ai_prompt_manager)
         yield update_dict
 
     async def pause_resume_wrapper() -> AsyncGenerator[Dict[Component, Any], None]:
         """Wrapper for handle_pause_resume."""
-        update_dict = await handle_pause_resume(webui_manager)
+        update_dict = await handle_pause_resume(ai_prompt_manager)
         yield update_dict
 
     async def clear_wrapper() -> AsyncGenerator[Dict[Component, Any], None]:
         """Wrapper for handle_clear."""
-        update_dict = await handle_clear(webui_manager)
+        update_dict = await handle_clear(ai_prompt_manager)
         yield update_dict
 
     # --- Connect Event Handlers using the Wrappers --

@@ -2,7 +2,7 @@ import gradio as gr
 from gradio.components import Component
 from functools import partial
 
-from src.webui.webui_manager import WebuiManager
+from src.ai_prompt.ai_prompt_manager import AiPromptManager
 from src.utils import config
 import logging
 import os
@@ -54,21 +54,21 @@ def _read_file_safe(file_path: str) -> Optional[str]:
 
 # --- Deep Research Agent Specific Logic ---
 
-async def run_deep_research(webui_manager: WebuiManager, components: Dict[Component, Any]) -> AsyncGenerator[
+async def run_deep_research(ai_prompt_manager: AiPromptManager, components: Dict[Component, Any]) -> AsyncGenerator[
     Dict[Component, Any], None]:
     """Handles initializing and running the DeepResearchAgent."""
 
     # --- Get Components ---
-    research_task_comp = webui_manager.get_component_by_id("deep_research_agent.research_task")
-    resume_task_id_comp = webui_manager.get_component_by_id("deep_research_agent.resume_task_id")
-    parallel_num_comp = webui_manager.get_component_by_id("deep_research_agent.parallel_num")
-    save_dir_comp = webui_manager.get_component_by_id(
+    research_task_comp = ai_prompt_manager.get_component_by_id("deep_research_agent.research_task")
+    resume_task_id_comp = ai_prompt_manager.get_component_by_id("deep_research_agent.resume_task_id")
+    parallel_num_comp = ai_prompt_manager.get_component_by_id("deep_research_agent.parallel_num")
+    save_dir_comp = ai_prompt_manager.get_component_by_id(
         "deep_research_agent.max_query")  # Note: component ID seems misnamed in original code
-    start_button_comp = webui_manager.get_component_by_id("deep_research_agent.start_button")
-    stop_button_comp = webui_manager.get_component_by_id("deep_research_agent.stop_button")
-    markdown_display_comp = webui_manager.get_component_by_id("deep_research_agent.markdown_display")
-    markdown_download_comp = webui_manager.get_component_by_id("deep_research_agent.markdown_download")
-    mcp_server_config_comp = webui_manager.get_component_by_id("deep_research_agent.mcp_server_config")
+    start_button_comp = ai_prompt_manager.get_component_by_id("deep_research_agent.start_button")
+    stop_button_comp = ai_prompt_manager.get_component_by_id("deep_research_agent.stop_button")
+    markdown_display_comp = ai_prompt_manager.get_component_by_id("deep_research_agent.markdown_display")
+    markdown_download_comp = ai_prompt_manager.get_component_by_id("deep_research_agent.markdown_download")
+    mcp_server_config_comp = ai_prompt_manager.get_component_by_id("deep_research_agent.mcp_server_config")
 
     # --- 1. Get Task and Settings ---
     task_topic = components.get(research_task_comp, "").strip()
@@ -90,7 +90,7 @@ async def run_deep_research(webui_manager: WebuiManager, components: Dict[Compon
         return
 
     # Store base save dir for stop handler
-    webui_manager.dr_save_dir = base_save_dir
+    ai_prompt_manager.dr_save_dir = base_save_dir
     os.makedirs(base_save_dir, exist_ok=True)
 
     # --- 2. Initial UI Update ---
@@ -114,9 +114,9 @@ async def run_deep_research(webui_manager: WebuiManager, components: Dict[Compon
 
     try:
         # --- 3. Get LLM and Browser Config from other tabs ---
-        # Access settings values via components dict, getting IDs from webui_manager
+        # Access settings values via components dict, getting IDs from ai_prompt_manager
         def get_setting(tab: str, key: str, default: Any = None):
-            comp = webui_manager.id_to_component.get(f"{tab}.{key}")
+            comp = ai_prompt_manager.id_to_component.get(f"{tab}.{key}")
             return components.get(comp, default) if comp else default
 
         # LLM Config (from agent_settings tab)
@@ -147,8 +147,8 @@ async def run_deep_research(webui_manager: WebuiManager, components: Dict[Compon
         }
 
         # --- 4. Initialize or Get Agent ---
-        if not webui_manager.dr_agent:
-            webui_manager.dr_agent = DeepResearchAgent(
+        if not ai_prompt_manager.dr_agent:
+            ai_prompt_manager.dr_agent = DeepResearchAgent(
                 llm=llm,
                 browser_config=browser_config_dict,
                 mcp_server_config=mcp_config
@@ -156,20 +156,20 @@ async def run_deep_research(webui_manager: WebuiManager, components: Dict[Compon
             logger.info("DeepResearchAgent initialized.")
 
         # --- 5. Start Agent Run ---
-        agent_run_coro = webui_manager.dr_agent.run(
+        agent_run_coro = ai_prompt_manager.dr_agent.run(
             topic=task_topic,
             task_id=task_id_to_resume,
             save_dir=base_save_dir,
             max_parallel_browsers=max_parallel_agents
         )
         agent_task = asyncio.create_task(agent_run_coro)
-        webui_manager.dr_current_task = agent_task
+        ai_prompt_manager.dr_current_task = agent_task
 
         # Wait briefly for the agent to start and potentially create the task ID/folder
         await asyncio.sleep(1.0)
 
         # Determine the actual task ID being used (agent sets this)
-        running_task_id = webui_manager.dr_agent.current_task_id
+        running_task_id = ai_prompt_manager.dr_agent.current_task_id
         if not running_task_id:
             # Agent might not have set it yet, try to get from result later? Risky.
             # Or derive from resume_task_id if provided?
@@ -182,7 +182,7 @@ async def run_deep_research(webui_manager: WebuiManager, components: Dict[Compon
         else:
             logger.info(f"Agent started with Task ID: {running_task_id}")
 
-        webui_manager.dr_task_id = running_task_id  # Store for stop handler
+        ai_prompt_manager.dr_task_id = running_task_id  # Store for stop handler
 
         # --- 6. Monitor Progress via research_plan.md ---
         if running_task_id:
@@ -197,7 +197,7 @@ async def run_deep_research(webui_manager: WebuiManager, components: Dict[Compon
         while not agent_task.done():
             update_dict = {}
             update_dict[resume_task_id_comp] = gr.update(value=running_task_id)
-            agent_stopped = getattr(webui_manager.dr_agent, 'stopped', False)
+            agent_stopped = getattr(ai_prompt_manager.dr_agent, 'stopped', False)
             if agent_stopped:
                 logger.info("Stop signal detected from agent state.")
                 break  # Exit monitoring loop
@@ -236,7 +236,7 @@ async def run_deep_research(webui_manager: WebuiManager, components: Dict[Compon
         # Try to get task ID from result if not known before
         if not running_task_id and final_result_dict and 'task_id' in final_result_dict:
             running_task_id = final_result_dict['task_id']
-            webui_manager.dr_task_id = running_task_id
+            ai_prompt_manager.dr_task_id = running_task_id
             task_specific_dir = os.path.join(base_save_dir, str(running_task_id))
             report_file_path = os.path.join(task_specific_dir, "report.md")
             logger.info(f"Task ID confirmed from result: {running_task_id}")
@@ -274,8 +274,8 @@ async def run_deep_research(webui_manager: WebuiManager, components: Dict[Compon
 
     finally:
         # --- 8. Final UI Reset ---
-        webui_manager.dr_current_task = None  # Clear task reference
-        webui_manager.dr_task_id = None  # Clear running task ID
+        ai_prompt_manager.dr_current_task = None  # Clear task reference
+        ai_prompt_manager.dr_task_id = None  # Clear running task ID
 
         yield {
             start_button_comp: gr.update(value="▶️ Run", interactive=True),
@@ -290,18 +290,18 @@ async def run_deep_research(webui_manager: WebuiManager, components: Dict[Compon
         }
 
 
-async def stop_deep_research(webui_manager: WebuiManager) -> Dict[Component, Any]:
+async def stop_deep_research(ai_prompt_manager: AiPromptManager) -> Dict[Component, Any]:
     """Handles the Stop button click."""
     logger.info("Stop button clicked for Deep Research.")
-    agent = webui_manager.dr_agent
-    task = webui_manager.dr_current_task
-    task_id = webui_manager.dr_task_id
-    base_save_dir = webui_manager.dr_save_dir
+    agent = ai_prompt_manager.dr_agent
+    task = ai_prompt_manager.dr_current_task
+    task_id = ai_prompt_manager.dr_task_id
+    base_save_dir = ai_prompt_manager.dr_save_dir
 
-    stop_button_comp = webui_manager.get_component_by_id("deep_research_agent.stop_button")
-    start_button_comp = webui_manager.get_component_by_id("deep_research_agent.start_button")
-    markdown_display_comp = webui_manager.get_component_by_id("deep_research_agent.markdown_display")
-    markdown_download_comp = webui_manager.get_component_by_id("deep_research_agent.markdown_download")
+    stop_button_comp = ai_prompt_manager.get_component_by_id("deep_research_agent.stop_button")
+    start_button_comp = ai_prompt_manager.get_component_by_id("deep_research_agent.start_button")
+    markdown_display_comp = ai_prompt_manager.get_component_by_id("deep_research_agent.markdown_display")
+    markdown_download_comp = ai_prompt_manager.get_component_by_id("deep_research_agent.markdown_download")
 
     final_update = {
         stop_button_comp: gr.update(interactive=False, value="⏹️ Stopping...")
@@ -346,22 +346,22 @@ async def stop_deep_research(webui_manager: WebuiManager) -> Dict[Component, Any
         final_update = {
             start_button_comp: gr.update(interactive=True),
             stop_button_comp: gr.update(interactive=False),
-            webui_manager.get_component_by_id("deep_research_agent.research_task"): gr.update(interactive=True),
-            webui_manager.get_component_by_id("deep_research_agent.resume_task_id"): gr.update(interactive=True),
-            webui_manager.get_component_by_id("deep_research_agent.max_iteration"): gr.update(interactive=True),
-            webui_manager.get_component_by_id("deep_research_agent.max_query"): gr.update(interactive=True),
+            ai_prompt_manager.get_component_by_id("deep_research_agent.research_task"): gr.update(interactive=True),
+            ai_prompt_manager.get_component_by_id("deep_research_agent.resume_task_id"): gr.update(interactive=True),
+            ai_prompt_manager.get_component_by_id("deep_research_agent.max_iteration"): gr.update(interactive=True),
+            ai_prompt_manager.get_component_by_id("deep_research_agent.max_query"): gr.update(interactive=True),
         }
 
     return final_update
 
 
-async def update_mcp_server(mcp_file: str, webui_manager: WebuiManager):
+async def update_mcp_server(mcp_file: str, ai_prompt_manager: AiPromptManager):
     """
     Update the MCP server.
     """
-    if hasattr(webui_manager, "dr_agent") and webui_manager.dr_agent:
+    if hasattr(ai_prompt_manager, "dr_agent") and ai_prompt_manager.dr_agent:
         logger.warning("⚠️ Close controller because mcp file has changed!")
-        await webui_manager.dr_agent.close_mcp_client()
+        await ai_prompt_manager.dr_agent.close_mcp_client()
 
     if not mcp_file or not os.path.exists(mcp_file) or not mcp_file.endswith('.json'):
         logger.warning(f"{mcp_file} is not a valid MCP file.")
@@ -373,11 +373,11 @@ async def update_mcp_server(mcp_file: str, webui_manager: WebuiManager):
     return json.dumps(mcp_server, indent=2), gr.update(visible=True)
 
 
-def create_deep_research_agent_tab(webui_manager: WebuiManager):
+def create_deep_research_agent_tab(ai_prompt_manager: AiPromptManager):
     """
     Creates a deep research agent tab
     """
-    input_components = set(webui_manager.get_components())
+    input_components = set(ai_prompt_manager.get_components())
     tab_components = {}
 
     with gr.Group():
@@ -417,12 +417,12 @@ def create_deep_research_agent_tab(webui_manager: WebuiManager):
             mcp_server_config=mcp_server_config,
         )
     )
-    webui_manager.add_components("deep_research_agent", tab_components)
-    webui_manager.init_deep_research_agent()
+    ai_prompt_manager.add_components("deep_research_agent", tab_components)
+    ai_prompt_manager.init_deep_research_agent()
 
     async def update_wrapper(mcp_file):
         """Wrapper for handle_pause_resume."""
-        update_dict = await update_mcp_server(mcp_file, webui_manager)
+        update_dict = await update_mcp_server(mcp_file, ai_prompt_manager)
         yield update_dict
 
     mcp_json_file.change(
@@ -432,15 +432,15 @@ def create_deep_research_agent_tab(webui_manager: WebuiManager):
     )
 
     dr_tab_outputs = list(tab_components.values())
-    all_managed_inputs = set(webui_manager.get_components())
+    all_managed_inputs = set(ai_prompt_manager.get_components())
 
     # --- Define Event Handler Wrappers ---
     async def start_wrapper(comps: Dict[Component, Any]) -> AsyncGenerator[Dict[Component, Any], None]:
-        async for update in run_deep_research(webui_manager, comps):
+        async for update in run_deep_research(ai_prompt_manager, comps):
             yield update
 
     async def stop_wrapper() -> AsyncGenerator[Dict[Component, Any], None]:
-        update_dict = await stop_deep_research(webui_manager)
+        update_dict = await stop_deep_research(ai_prompt_manager)
         yield update_dict
 
     # --- Connect Handlers ---

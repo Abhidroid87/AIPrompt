@@ -19,7 +19,7 @@ from src.controller.custom_controller import CustomController
 from src.agent.deep_research.deep_research_agent import DeepResearchAgent
 
 
-class WebuiManager:
+class AiPromptManager:
     def __init__(self, settings_save_dir: str = "./tmp/ai_prompt_settings"):
         self.id_to_component: dict[str, Component] = {}
         self.component_to_id: dict[Component, str] = {}

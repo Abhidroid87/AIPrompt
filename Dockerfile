@@ -44,6 +44,7 @@ RUN apt-get update && apt-get install -y \
     fonts-dejavu-core \
     fonts-dejavu-extra \
     vim \
+    findutils \
     && rm -rf /var/lib/apt/lists/*
 
 # Install noVNC

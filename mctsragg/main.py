@@ -39,30 +39,60 @@ from evaluator import Evaluator
 from utils import chunk_text, normalize_text
 
 
-# Test queries - 20 hard multi-step questions
+# Test queries - SICKLE CELL DISEASE RESEARCH QUESTIONS
 TEST_QUERIES = [
-    "What are the main differences between supervised and unsupervised learning?",
-    "How do neural networks use backpropagation to train weights?",
-    "Explain the relationship between entropy and information gain in decision trees.",
-    "What are the trade-offs between bias and variance in machine learning models?",
-    "How does cross-validation help prevent overfitting?",
-    "Describe the process of feature engineering and its importance.",
-    "What is the difference between classification and regression tasks?",
-    "Explain how k-means clustering works and its limitations.",
-    "What are ensemble methods and why do they improve model performance?",
-    "How does regularization (L1/L2) help prevent overfitting?",
-    "Describe the difference between parametric and non-parametric models.",
-    "What is the role of activation functions in neural networks?",
-    "Explain the concept of transfer learning and its applications.",
-    "How do you handle imbalanced datasets in classification tasks?",
-    "What is the difference between batch gradient descent and stochastic gradient descent?",
-    "Describe the architecture and training process of autoencoders.",
-    "What are the challenges in building effective recommendation systems?",
-    "How does dimensionality reduction improve model performance?",
-    "Explain the concept of attention mechanisms in transformer models.",
-    "What are the key differences between RNNs and CNNs?",
+    "Is CRISPR effective for sickle cell disease treatment?",
+    "What are the benefits and risks of CRISPR-Cas9 gene therapy for sickle cell disease?",
+    "How does CTX001 therapy work and what are its clinical outcomes?",
+    "What are the main challenges in delivering CRISPR therapies for sickle cell disease?",
+    "How does exagamglogene autotemcel differ from other gene-editing approaches?",
+    "What is the mechanism of fetal hemoglobin (HbF) reactivation in sickle cell treatment?",
+    "What are the long-term safety concerns of CRISPR-Cas9 treatment for sickle cell disease?",
+    "How effective is CRISPR therapy compared to blood transfusions for sickle cell disease?",
 ]
 
+
+def load_documents_from_sources() -> str:
+    """Load all documents from Sources folder for sickle cell research."""
+    import os
+    from pathlib import Path
+    
+    sources_dir = Path("../Sources")
+    all_text = ""
+    
+    if sources_dir.exists():
+        print(f"Loading documents from {sources_dir}...")
+        # Load all text files
+        for file in sources_dir.glob("*.pdf"):
+            print(f"  - Found: {file.name}")
+        # For now, load from data files as PDFs need OCR
+        for file in sources_dir.glob("*.txt"):
+            try:
+                with open(file, 'r') as f:
+                    all_text += f"\n\n=== {file.name} ===\n" + f.read()
+            except:
+                pass
+    
+    # Also include sickle cell data
+    try:
+        with open("data/sickle_cell.txt", 'r') as f:
+            all_text += f"\n\n=== Sickle Cell Information ===\n" + f.read()
+    except:
+        pass
+    
+    if not all_text.strip():
+        print("Warning: No documents loaded from Sources. Using sample text.")
+        all_text = """
+Sickle cell disease (SCD) is a genetic blood disorder caused by a mutation in the HBB gene, 
+leading to abnormal hemoglobin (HbS). The disease results in chronic hemolytic anemia, 
+painful vaso-occlusive crises, and organ damage. Gene-editing approaches, particularly 
+CRISPR-Cas9, aim to reactivate fetal hemoglobin (HbF) or correct the HBB mutation. 
+Recent clinical trials (e.g., CTX001) have shown promising results, with patients achieving 
+transfusion independence and reduced pain episodes. However, challenges remain, including 
+off-target effects, delivery efficiency, and long-term safety.
+"""
+    
+    return all_text
 
 def load_documents(filepath: str) -> str:
     """Load documents from file."""
@@ -70,8 +100,8 @@ def load_documents(filepath: str) -> str:
         with open(filepath, 'r') as f:
             return f.read()
     except FileNotFoundError:
-        print(f"Warning: {filepath} not found. Using sample text.")
-        return SAMPLE_DOCUMENTS
+        print(f"Warning: {filepath} not found. Using sources folder.")
+        return load_documents_from_sources()
 
 
 def build_faiss_index(chunks: list, embed_model) -> faiss.IndexFlatL2:
@@ -112,20 +142,21 @@ def main():
     embed_model = SentenceTransformer('all-MiniLM-L6-v2')
     print("✓ Embedding model loaded")
 
-    # Load and chunk documents
-    doc_text = load_documents("data/documents.txt")
-    chunks = chunk_text(doc_text, chunk_size=300, overlap=50)
+    # Load and chunk documents - OPTIMIZED for speed
+    print("\n[1] Loading sickle cell research documents...")
+    doc_text = load_documents_from_sources()
+    chunks = chunk_text(doc_text, chunk_size=400, overlap=50)  # Larger chunks = fewer
     print(f"✓ Loaded {len(chunks)} document chunks")
 
     # Build FAISS index
     faiss_index = build_faiss_index(chunks, embed_model)
     print("✓ FAISS index built")
 
-    # Initialize systems
+    # Initialize systems - OPTIMIZED iterations
     rag_baseline = RAGBaseline(faiss_index, chunks, embed_model)
     gap_detector = GapDetector()
     kg = KnowledgeGraph()
-    mcts_lite = MCTSLite(rag_baseline, gap_detector, max_iterations=2)
+    mcts_lite = MCTSLite(rag_baseline, gap_detector, max_iterations=2, beta=0.7)  # 2 iterations for speed
     evaluator = Evaluator(output_file="results.csv")
 
     print("✓ All components initialized\n")

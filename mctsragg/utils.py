@@ -12,7 +12,7 @@ MODEL_NAME = "qwen3:4b"
 
 def call_ollama(prompt: str, temperature: float = 0.7) -> Optional[str]:
     """
-    Call Ollama Qwen 3.4 model via REST API.
+    Call Ollama Qwen 3.4 model via REST API (OPTIMIZED).
     
     Args:
         prompt: The input prompt for the model
@@ -30,10 +30,12 @@ def call_ollama(prompt: str, temperature: float = 0.7) -> Optional[str]:
                 "temperature": temperature,
                 "stream": False,
                 "options": {
-                    "num_predict": 150
+                    "num_predict": 100,  # Reduced from 150 for speed
+                    "top_k": 40,  # Add sampling params for faster generation
+                    "top_p": 0.9
                 }
             },
-            timeout=120,
+            timeout=60,  # Reduced timeout
         )
         if response.status_code == 200:
             result = response.json()

@@ -14,6 +14,7 @@ class GapDetector:
     def detect_gaps(self, answer: str, retrieved_docs: list) -> Tuple[int, str]:
         """
         Use LLM to identify gaps in answer based on retrieved documents.
+        OPTIMIZED: Faster gap detection for demo.
         
         Args:
             answer: Generated answer
@@ -22,31 +23,29 @@ class GapDetector:
         Returns:
             Tuple of (gap_count: int, gap_description: str)
         """
-        context = "\n".join(retrieved_docs)
+        context = "\n".join(retrieved_docs[:2])  # Use only first 2 docs for speed
         
-        prompt = f"""Analyze this answer and identify information gaps:
+        prompt = f"""Quickly analyze this answer for information gaps:
 
-Context Documents:
+Context:
 {context}
 
-Generated Answer:
+Answer:
 {answer}
 
-For the answer, identify and count:
-1. Missing entities (proper nouns, key concepts not mentioned)
-2. Missing relations (connections between entities not explained)
-3. Temporal information gaps (dates, sequences missing)
-4. Conflicts or contradictions with the context
+Count these gaps:
+1. Missing key concepts
+2. Unexplained connections
+3. Contradictions
 
-Provide a brief summary of gaps found and count the total gaps.
-Format: "Gaps found: [NUMBER]. Issues: [brief description]" """
+Format: "[NUMBER] gaps: [brief list]" """
         
-        response = call_ollama(prompt, temperature=0.3)
+        response = call_ollama(prompt, temperature=0.2)
         
         if not response:
             return 0, "Analysis failed"
         
-        # Simple extraction of gap count from response
+        # Fast extraction of gap count
         gap_count = 0
         try:
             # Look for "Gaps found: N" pattern

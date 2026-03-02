@@ -30,16 +30,28 @@ def call_ollama(prompt: str, temperature: float = 0.7) -> Optional[str]:
                 "temperature": temperature,
                 "stream": False,
                 "options": {
-                    "num_predict": 100,  # Reduced from 150 for speed
-                    "top_k": 40,  # Add sampling params for faster generation
-                    "top_p": 0.9
+                    "num_predict": 1024,  # Increased for reasoning models
+                    "top_k": 40,
+                    "top_p": 0.9,
+                    "num_ctx": 4096      # Ensure enough context window
                 }
             },
-            timeout=60,  # Reduced timeout
+            timeout=300,  # Increased timeout for reasoning/thinking time
         )
         if response.status_code == 200:
             result = response.json()
-            return result.get("response", "").strip()
+            full_response = result.get("response", "").strip()
+            
+            # If the model has a reasoning section (common in Qwen/DeepSeek reasoning models)
+            # Try to extract the final answer.
+            if "...done thinking." in full_response:
+                parts = full_response.split("...done thinking.")
+                return parts[-1].strip()
+            elif "</thought>" in full_response:
+                parts = full_response.split("</thought>")
+                return parts[-1].strip()
+            
+            return full_response
         else:
             print(f"Ollama error: {response.status_code}")
             return None

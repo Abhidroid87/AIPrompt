@@ -96,13 +96,17 @@ Respond with only: "yes" or "no" """
         mcts_answer = mcts_result["improved_answer"]
         baseline_docs = baseline_result["retrieved_docs"]
         
-        # Faithfulness
+        # Faithfulness (MCTS answer should be checked against ALL docs it saw)
+        mcts_docs = mcts_result.get("all_retrieved_docs", [])
+        if not mcts_docs:
+            mcts_docs = baseline_docs
+            
         baseline_faithful = self.evaluate_faithfulness(baseline_answer, baseline_docs)
-        mcts_faithful = self.evaluate_faithfulness(mcts_answer, baseline_docs)
+        mcts_faithful = self.evaluate_faithfulness(mcts_answer, mcts_docs)
         
         # Gap count
         baseline_gaps, _ = gap_detector.detect_gaps(baseline_answer, baseline_docs)
-        mcts_gaps, _ = gap_detector.detect_gaps(mcts_answer, baseline_docs)
+        mcts_gaps, _ = gap_detector.detect_gaps(mcts_answer, mcts_docs)
         
         # Retrieval cost
         baseline_retrievals = baseline_result.get("retrieval_count", 1)

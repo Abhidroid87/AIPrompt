@@ -116,31 +116,44 @@ Provide a corrected version of the answer that is fully supported."""
     
     def compute_quality_score(self, answer: str, retrieved_docs: List[str]) -> float:
         """Estimate answer quality (faithfulness to docs)."""
-        prompt = f"""Evaluate how well this answer is supported by the documents:
-
+        # Join documents but limit total context length
+        context_text = "\n".join(retrieved_docs)
+        if len(context_text) > 4000:
+            context_text = context_text[:4000] + "..."
+            
+        prompt = f"""Evaluate how well the following answer is supported by the provided context.
+        
 Answer: {answer}
 
-Documents: {" ".join(retrieved_docs[:100]) if retrieved_docs else "None"}
+Context Documents:
+{context_text}
 
-Rate on scale 0-1 where:
-0.0 = Not supported by documents
+Rate the faithfulness on a scale 0.0 to 1.0 where:
+0.0 = Not supported or contradicted
 0.5 = Partially supported
-1.0 = Fully supported by documents
+1.0 = Fully supported
 
-Respond with only the number."""
+Respond ONLY with the numerical score (e.g., 0.8)."""
         
         response = call_ollama(prompt, temperature=0.3)
         
         try:
-            score = float(response.strip()[:3])
+            cleaned_response = response.strip()
+            # Handle cases where model returns non-numeric prefix
+            import re
+            numeric_match = re.search(r"(\d+\.\d+|\d+)", cleaned_response)
+            if numeric_match:
+                score = float(numeric_match.group(1))
+            else:
+                score = 0.5
             return min(max(score, 0.0), 1.0)
         except:
             return 0.5
             
-    def _compute_reward(self, answer: str, retrieved_docs: List[str], baseline_gaps: int) -> Tuple[float, float]:
+    def _compute_reward(self, answer: str, retrieved_docs: List[str], baseline_gaps: int) -> Tuple[float, float, int]:
         r"""
         Compute reward per paper: R = \beta * \Delta Gap + (1-\beta) * Quality
-        Returns (Reward, GapScore)
+        Returns (Reward, GapScore, GapCount)
         """
         gap_count, _ = self.gap_detector.detect_gaps(answer, retrieved_docs)
         
@@ -156,7 +169,7 @@ Respond with only the number."""
         # Combined reward based on paper formula
         reward = self.beta * gap_reduction + (1 - self.beta) * quality_score
         
-        return min(max(reward, 0.0), 1.0), gap_reduction
+        return min(max(reward, 0.0), 1.0), gap_reduction, gap_count
 
     def refine_answer(self, query: str, initial_answer: str, 
                      retrieved_docs: List[str]) -> Dict:
@@ -168,10 +181,13 @@ Respond with only the number."""
         root = MCTSNode(answer=initial_answer, retrieved_docs=retrieved_docs, query=query)
         baseline_gaps, _ = self.gap_detector.detect_gaps(initial_answer, retrieved_docs)
         
-        reward_val, gap_score_val = self._compute_reward(initial_answer, retrieved_docs, baseline_gaps)
+        reward_val, gap_score_val, gap_count_val = self._compute_reward(initial_answer, retrieved_docs, baseline_gaps)
         root.reward_sum = reward_val
         root.gap_score = gap_score_val
         root.visits = 1
+        
+        # Keep track of all docs seen during search
+        cumulative_docs = list(retrieved_docs)
         
         actions_log = []
         
@@ -185,32 +201,31 @@ Respond with only the number."""
             # Expansion Phase
             candidate_children = []
             
-            # Action 1: Refine Query
+            # Action 1: Refine Query (Planner/Retriever)
             refined_query = self.refine_query(current.query or query, current.answer, current.retrieved_docs)
             refined_docs = self.rag.retrieve(refined_query, top_k=3)
-            # Accumulate context to mirror long-context scaling for agent blackboard
             all_docs = list(set(current.retrieved_docs + refined_docs))
             refined_answer = self.rag.generate_answer(refined_query, all_docs)
             
             child1 = MCTSNode(answer=refined_answer, retrieved_docs=all_docs, parent=current, action_taken="refine_query", query=refined_query)
             candidate_children.append(child1)
             
-            # Action 2: Expand Entity
-            expanded_answer = self.expand_entity(current.answer, current.retrieved_docs)
-            child2 = MCTSNode(answer=expanded_answer, retrieved_docs=current.retrieved_docs, parent=current, action_taken="expand_entity", query=current.query)
-            candidate_children.append(child2)
-            
-            # Action 3: Verify & Resolve
+            # Action 2: Audit & Resolve (Validator) - Combined Entity Expansion & Verification
             verified_answer = self.verify_answer(current.answer, current.retrieved_docs)
-            child3 = MCTSNode(answer=verified_answer, retrieved_docs=current.retrieved_docs, parent=current, action_taken="verify_answer", query=current.query)
-            candidate_children.append(child3)
+            child2 = MCTSNode(answer=verified_answer, retrieved_docs=current.retrieved_docs, parent=current, action_taken="audit_and_resolve", query=current.query)
+            candidate_children.append(child2)
             
             # Simulation & Backpropagation Phase
             for child in candidate_children:
-                reward, gap_score = self._compute_reward(child.answer, child.retrieved_docs, baseline_gaps)
+                reward, gap_score, gc = self._compute_reward(child.answer, child.retrieved_docs, baseline_gaps)
                 child.reward_sum = reward
                 child.gap_score = gap_score
                 child.visits = 1
+                
+                # Update global doc set
+                for doc in child.retrieved_docs:
+                    if doc not in cumulative_docs:
+                        cumulative_docs.append(doc)
                 
                 # Backpropagate to root
                 temp = child.parent
@@ -235,5 +250,6 @@ Respond with only the number."""
             "initial_answer": initial_answer,
             "reward": best_child.reward_sum / max(1, best_child.visits),
             "iterations": self.max_iterations,
-            "actions": actions_log
+            "actions": actions_log,
+            "all_retrieved_docs": cumulative_docs  # VERY IMPORTANT FOR EVALUATION
         }

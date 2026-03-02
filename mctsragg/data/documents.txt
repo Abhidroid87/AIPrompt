@@ -1,0 +1,120 @@
+Machine Learning Fundamentals
+
+1. SUPERVISED LEARNING
+
+Supervised learning is a category of machine learning that uses labeled training data to learn a mapping from inputs to outputs. Each training example consists of input features and a target output variable. The algorithm learns by minimizing the difference between predicted outputs and actual targets.
+
+Common supervised learning tasks include classification (predicting discrete categories) and regression (predicting continuous values). Examples include email spam detection, house price prediction, and medical diagnosis from patient data.
+
+The training process involves presenting examples to the model, computing the loss or error, and updating model parameters to reduce this error. This process repeats until the model converges to an optimal solution.
+
+Key challenges include selecting appropriate features, handling imbalanced data, and preventing overfitting to training examples.
+
+
+2. UNSUPERVISED LEARNING
+
+Unsupervised learning discovers hidden patterns and structures in unlabeled data. Unlike supervised learning, there are no predefined target outputs to guide learning.
+
+Clustering algorithms group similar data points together. K-means is a popular clustering algorithm that partitions data into k groups by iteratively assigning points to nearest cluster centers and updating center positions. Hierarchical clustering builds nested clusters by progressively merging or splitting groups.
+
+Dimensionality reduction techniques reduce the number of features while preserving important information. Principal Component Analysis (PCA) transforms data to a lower-dimensional space by finding directions of maximum variance. This helps visualize high-dimensional data and improves computational efficiency.
+
+Density estimation and anomaly detection also fall under unsupervised learning. These techniques identify unusual patterns or outliers in data.
+
+
+3. NEURAL NETWORKS AND DEEP LEARNING
+
+Neural networks are computational models inspired by biological neurons in the brain. They consist of interconnected layers of artificial neurons or nodes.
+
+The architecture includes an input layer, hidden layers, and an output layer. Each connection between neurons has an associated weight. Information flows forward through the network (forward propagation) and errors flow backward (backpropagation).
+
+Backpropagation is the fundamental algorithm for training neural networks. It computes gradients of the loss function with respect to each weight using the chain rule of calculus. Weights are then updated in the direction opposite to gradients to reduce loss.
+
+Activation functions introduce non-linearity, enabling networks to learn complex patterns. Common activation functions include ReLU (Rectified Linear Unit), sigmoid, and tanh. ReLU outputs max(0, x), maintaining computational efficiency. Sigmoid outputs values between 0 and 1, suitable for binary classification.
+
+Deep learning uses neural networks with many layers. Convolutional Neural Networks (CNNs) excel at image processing through convolutional and pooling operations. Recurrent Neural Networks (RNNs) process sequential data using feedback connections.
+
+
+4. DECISION TREES AND TREE-BASED METHODS
+
+Decision trees recursively partition data by selecting features that best separate classes or reduce variance. At each node, the algorithm chooses a feature and threshold that maximizes information gain.
+
+Information gain measures the reduction in entropy after a split. Entropy quantifies disorder or impurity: higher entropy means more mixed classes. Information gain = parent entropy - weighted average of children entropies.
+
+Advantages of decision trees include interpretability and handling non-linear relationships. Disadvantages include tendency to overfit and instability to small data changes.
+
+Ensemble methods combine multiple decision trees to improve performance. Random Forests train many trees on random data subsets, averaging predictions to reduce overfitting. Gradient Boosting trains trees sequentially, with each tree correcting previous trees' errors.
+
+
+5. OVERFITTING AND REGULARIZATION
+
+Overfitting occurs when a model learns training data too well and fails to generalize to new data. High model complexity relative to training data size increases overfitting risk.
+
+Bias refers to systematic errors from oversimplified models. Variance refers to sensitivity to training data fluctuations. Underfitting has high bias but low variance. Overfitting has low bias but high variance. The goal is balancing bias and variance for good generalization.
+
+Cross-validation estimates generalization error without a separate test set. K-fold cross-validation splits data into k parts, training k models and averaging performance estimates. This provides robust evaluation with limited data.
+
+Regularization penalizes complex models to prevent overfitting. L1 regularization (Lasso) penalizes the sum of absolute weight values, encouraging sparse solutions. L2 regularization (Ridge) penalizes the sum of squared weights, preventing extreme values. Elastic Net combines both penalties.
+
+Early stopping monitors validation performance during training, stopping when performance degrades.
+
+
+6. FEATURE ENGINEERING
+
+Feature engineering creates new features from raw data to improve model performance. Good features are informative, independent, and efficiently computed.
+
+Feature scaling normalizes features to similar ranges. Standardization subtracts the mean and divides by standard deviation. Min-max scaling transforms values to [0,1]. Scaling improves optimization convergence and fairness between features.
+
+Feature selection identifies the most relevant subset of features. Filter methods rank features by statistical properties. Wrapper methods evaluate subsets using model performance. Embedded methods incorporate selection during model training (e.g., L1 regularization).
+
+Feature interactions combine existing features to capture relationships. Polynomial features include cross-products and powers. Domain knowledge guides creation of meaningful interactions.
+
+Encoding categorical features transforms them to numerical representations. One-hot encoding creates binary columns for each category. Target encoding maps categories to target variable statistics.
+
+
+7. TRANSFER LEARNING
+
+Transfer learning reuses knowledge from source tasks to improve target task learning. This is especially valuable with limited training data.
+
+Pre-trained models trained on large datasets capture useful general patterns. Fine-tuning adapts pre-trained models to new tasks by training only top layers or reducing learning rates.
+
+Embeddings represent discrete data (words, images) as continuous vectors capturing semantic relationships. Pre-trained embeddings from large corpora encode linguistic knowledge. Vision models pre-trained on ImageNet transfer well to downstream vision tasks.
+
+Domain adaptation addresses distribution differences between source and target data. Techniques include feature alignment, adversarial learning, and few-shot learning.
+
+
+8. EVALUATION METRICS
+
+Classification metrics evaluate discrete output predictions. Accuracy is the proportion of correct predictions. Precision is the proportion of positive predictions that are correct. Recall is the proportion of true positives detected.
+
+F1 score is the harmonic mean of precision and recall, useful for imbalanced data. ROC curves plot true positive rate vs false positive rate. AUC measures area under the ROC curve, showing classification performance across thresholds.
+
+Regression metrics evaluate continuous predictions. Mean Squared Error (MSE) averages squared prediction errors. Root Mean Squared Error (RMSE) is MSE in original units. Mean Absolute Error (MAE) is more robust to outliers.
+
+R² (coefficient of determination) measures variance explained by the model, ranging from 0 to 1.
+
+
+9. ENSEMBLE METHODS
+
+Ensemble methods combine multiple models to achieve better performance than individual models.
+
+Bagging (Bootstrap Aggregating) trains multiple models on random subsets of training data, each selected with replacement. Predictions are averaged for regression or majority-voted for classification. Bagging reduces variance through averaging.
+
+Boosting trains models sequentially, with each model focusing on examples misclassified by previous models. AdaBoost increases weights of misclassified examples. Gradient Boosting minimizes residual errors at each stage.
+
+Stacking combines multiple models using a meta-learner. Base models make predictions, and the meta-learner learns to combine them optimally. This can capture complex model interactions.
+
+Voting ensembles use different model types and select predictions by majority vote.
+
+
+10. DIMENSIONALITY REDUCTION
+
+High-dimensional data is computationally expensive and prone to the curse of dimensionality. Dimensionality reduction compresses data while preserving important information.
+
+Principal Component Analysis (PCA) finds directions of maximum variance. Components are orthogonal and ranked by importance. PCA reduces dimensions by selecting top components.
+
+t-SNE creates 2D visualizations of high-dimensional data. It preserves local neighborhood structure well but is computationally expensive.
+
+Autoencoders learn compressed representations through neural networks. The encoder compresses to a bottleneck layer, the decoder reconstructs. Learned representations capture important patterns.
+
+Feature selection also reduces dimensionality by removing less informative features.

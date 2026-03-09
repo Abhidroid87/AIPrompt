@@ -11,6 +11,10 @@ def extract_text_from_pdf(pdf_path: str) -> str:
             textpage = page.get_textpage()
             text += textpage.get_text_range()
             text += "\n"
+            textpage.close()
+            page.close()
+            
+        pdf.close()
         return text
     except Exception as e:
         print(f"Error extracting PDF {pdf_path}: {e}")

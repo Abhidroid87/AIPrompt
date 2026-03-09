@@ -1,1 +1,0 @@
-timestamp,query,baseline_answer,mcts_answer,baseline_faithfulness,mcts_faithfulness,baseline_gaps,mcts_gaps,baseline_retrievals,mcts_retrievals,improvement_score,mcts_iterations

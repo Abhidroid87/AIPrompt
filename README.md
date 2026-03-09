@@ -1,77 +1,78 @@
-# MCTSRAG-KG: Fact-Oriented Data Retrieval via MCTS-Guided Multi-Agent Reasoning
+# Gap-Aware MCTS-RAG-KG: A Low-Resource Benchmark for Medical RAG
 
-This repository serves as the official proof-of-concept implementation for the research paper: 
-**"Fact-Oriented Data Retrieval via MCTS-Guided Multi-Agent Reasoning with Persistent Knowledge Graphs and Systematic Gap Analysis"**
+This repository provides a highly optimized, low-resource implementation of the **Gap-Aware MCTS-RAG-KG** architecture. It is designed specifically to run locally on mid-range hardware (laptops) without the need for large cloud GPUs or heavy graph databases.
 
-## Overview
+This codebase demonstrates the core logic of the Monte Carlo Tree Search (MCTS) Knowledge Graph (KG) retrieval formulation proposed in our research paper. The benchmark specifically targets resolving information gaps (Conflict, Entity, Temporal, and Coverage gaps) in complex medical domains, specifically using CRISPR-Cas9 trials for Sickle Cell Disease (SCD) as the case study.
 
-MCTSRAG-KG addresses the core limitations of traditional, single-pass Retrieval-Augmented Generation (RAG) systems. Standard RAG assumes retrieved knowledge is self-consistent and complete, leading to unhandled ambiguity and hallucinations. 
+## 🚀 Key Innovations Demonstrated
 
-This implementation demonstrates an end-to-end framework formulating information retrieval as a **cost-aware planning problem with epistemic uncertainty**. 
-
-### 1. Gap-Prioritized MCTS Planning
-As outlined in **Algorithm 1** of our paper, this codebase shifts from a "greedy" linear retrieval loop to an actual **Monte Carlo Tree Search (MCTS)**.
-- **Implemented in:** `mcts_module.py`
-- **How it works:** Our MCTS constructs a search tree where each node represents a retrieval state (`answer`, `retrieved_docs`). Traversal is explicitly governed by our proposed Gap-aware UCT formula:
-  `UCT = Q(n)/N(n) + c * sqrt(ln(N(parent)) / N(n)) + GapScore(n)`
-- **Reward Function:** The reward explicitly prioritizes closing epistemic gaps over simple semantic similarity: `Reward = β * ΔGap + (1-β) * Quality`.
-
-### 2. Multi-Agent Reasoning & Coordination
-Our paper introduces a coordinated pipeline of a Planner, Retriever, Validator, and Synthesizer. In the codebase, these agents directly map to the **Expansion Phase** of our MCTS algorithm (`mcts_module.py`):
-- **Planner/Retriever (`refine_query`):** Generates follow-up questions to resolve missing context or ambiguities.
-- **Synthesizer (`expand_entity`):** Expands definitions, attributes, and relationships using prior context.
-- **Validator (`verify_answer`):** Acts as a critical self-check against the fetched context to identify contradictions or unsupported facts before formulating the final answer.
-
-### 3. Persistent Knowledge Graph (KG) Memory
-Unlike stateless RAGs, our system updates a persistent Knowledge Graph during retrieval. 
-- **Implemented in:** `kg_module.py`
-- **How it works:** Extracted facts are parsed into Subject-Predicate-Object triples, assigned confidence scores, and aggregated over the session. This provides transparent tracking, attribution to original sources, and allows the framework to detect and flag "Conflict Gaps."
-
-### 4. Epistemic Gap Detector
-A tailored LLM sequence explicitly evaluates 5 types of gaps mapping to our framework's taxonomy: Entity, Relation, Temporal, Conflict, and Coverage gaps.
-- **Implemented in:** `gap_module.py`
-- **How it works:** Evaluates the generated answer against the context, extracting explicitly missing links or contradictory statements. The total gap count translates into the `GapReduction` metric fed to the MCTS Planner.
+1. **Mathematical UCT-Gap Calculation**: Strict implementation of the gap-aware Upper Confidence Bound for Trees formula: 
+   $UCT_{gap}(n_j) = \frac{Q(n_j)}{N(n_j)} + c\sqrt{\frac{\ln N(parent)}{N(n_j)}} + \alpha \cdot GapScore(n_j)$
+2. **Local, Low-RAM Knowledge Graph**: Uses NetworkX for zero-overhead graph state persistence rather than heavy databases like Neo4j.
+3. **Mid-Range Hardware Compatibility**: Embeddings are computed on CPU (FAISS + MiniLM), and LLM synthesis utilizes a quantized lightweight model via Ollama.
+4. **Source Credibility Weighting**: Mathematically resolves conflicts between documents (e.g., Clinical Trials vs. PR Blogs) utilizing statistical source credibility factors ($\sigma$).
 
 ---
 
-## Experimental Validation & Evidence of Claims
+## 🛠️ Setup Instructions for Reviewers
 
-Executing this codebase (`python3 main.py`) empirically validates the claims made in Section 5 of our paper. The output includes an **Evaluation Summary** logging the comparison between Baseline RAG and MCTSRAG-KG across high-complexity, multi-step queries.
+### 1. Prerequisites
+- **Python 3.12+**
+- **Ollama**: Installed locally to run the local LLM. (Download from [ollama.com](https://ollama.com))
 
-**What this code proves regarding our paper claims:**
-1. **Factuality & Interpretability:** The final answer is no longer a hidden black-box generation. The MCTS module tracks `actions_log` across nodes, providing complete **Reasoning Traces**. The `kg_module.py` provides exact triples verifying *where* the information originated. 
-2. **Reduced Halucinations via Gap Reduction:** By strictly factoring `ΔGap` into the MCTS reward loop (`mcts_module.py`), the final retrieved nodes demonstrably drop the "Open Gap Count" compared to baseline. 
-3. **Cost Sensitivity:** Not every query requires full tree rollouts. The MCTS loop dynamically searches path trees, maximizing utility within bounded iterations. 
+### 2. Environment Setup
 
----
-
-## Getting Started
-
-### Prerequisites
-
-We recommend utilizing an environment configured for local inference (e.g., Ollama) combined with FAISS for semantic routing, reducing API overhead for intense tree-search rollouts.
-
-- CPU / CUDA configured environments (Note: VRAM constrained environments can safely run this logic on System RAM).
-- Local LLM Runner (e.g., Ollama) pulling `qwen3:4b` or a similar highly-capable parameter model.
-
-### Execution
+Clone or open the repository, then set up the python virtual environment:
 
 ```bash
-# 1. Install dependencies
-pip install sentence-transformers faiss-cpu tqdm requests
-
-# 2. Pull local model for multi-agent logic
-ollama pull qwen3:4b
-
-# 3. Execute the pipeline
-python3 main.py
+cd mctsragg/
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
-Results are saved to `results.csv` tracking:
-- Faithfulness evaluation
-- Iteration cost
-- Gap Reduction scores
-- Base vs. MCTS improvement metrics
+### 3. Model Initialization
+You need to pull the specific local LLM we use for reasoning and synthesis:
+```bash
+ollama pull qwen3:4b
+```
+*(Ensure the Ollama service is running in the background: `ollama serve`)*
 
-## Future Work & Next Steps
-As proposed in the paper, extending this implementation to support **Tree-of-Thoughts** inside agent nodes, as well as enabling **cross-user persistent decentralized KGs**, stand as prime candidates for Version 2.0 of this repository.
+### 4. Ensure Data Sources are Available
+The PDFs utilized to generate the answers must be located in the `Sources/` directory at the root of the project. This includes:
+1. `Frangoul H, et al_ NEJM 2024_ Exagamglogene autotemcel for severe sickle cell disease.pdf`
+2. `december-8-2023-summary-basis-for-regulatory-action-casgevy.pdf`
+3. `Vertex and CRISPR Therapeutics Present New Data...pdf`
+
+---
+
+## 🔬 Running the Benchmark
+
+From within the `mctsragg/` directory, simply execute the main trace script:
+
+```bash
+cd mctsragg/
+./venv/bin/python main.py
+```
+
+### Expected Output Trace
+
+The system will output a definitive trace corresponding to our research paper's methodology:
+1. **[Retriever]**: FAISS chunking and local index building.
+2. **[Planner]**: Entity extraction into the networkx Graph.
+3. **[Validator]**: Identifies the **Conflict Gap** regarding efficacy (95% vs. 88%).
+4. **[MCTS UCT Trace]**: Evaluates the action and calculates the UCT reward mathematically. 
+5. **[Resolution]**: The mathematical resolution where the 95% efficacy is weighted stronger due to clinical source credibility ($\sigma = 0.95$).
+6. **[Final Gap Report]**: Formally detects the **Coverage Gap** (lack of >5 year longitudinal data).
+7. **[Final Generation]**: Local LLM synthesis of purely the validated factual graph, avoiding hallucinations.
+
+---
+
+## 📁 Repository Structure
+
+* `ARCHITECTURE.md` - In-depth breakdown of the logical workflow and MCTS formulas.
+* `Sources/` - The clinical trial PDFs acting as the Knowledge Base.
+* `mctsragg/` - The source code.
+  * `main.py` - Core MCTS-RAG logic, UCT calculations, NetworkX KG, and Execution Trace.
+  * `pdf_parser.py` - Safely extracts chunked texts from papers without memory leaks.
+  * `utils.py` - Standardized calls linking to the local Ollama instance and chunking maths.

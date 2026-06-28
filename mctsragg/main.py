@@ -67,7 +67,6 @@ def calculate_gap_score(node_action: str, current_gaps: List[GapNode]) -> float:
     Implementation of: GapScore(n) = \sum_{g \in G_{gap}} w(g_{type}) * priority(g) * resolved(g, n)
     """
     weights = {
-        "Conflict": 0.9,
         "Entity": 0.7,
         "Coverage": 0.5
     }
